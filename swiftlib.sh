@@ -64,13 +64,21 @@ authenticate() {
     STORAGE_USER=$OS_USERNAME
     STORAGE_KEY=$OS_USERNAME
 
+
     debug "Auth with u: $STORAGE_USER k: $STORAGE_KEY"
 
-    REQUEST="{\"auth\": {\"tenantName\":\"$OS_TENANT_NAME\", \"passwordCredentials\": {\"username\": \"$OS_USERNAME\", \"password\": \"$OS_PASSWORD\"}}}"
-
-    RAW_TOKEN=`curl -s -d "$REQUEST" -H "Content-type: application/json" "$OS_AUTH_URL/tokens"`
-
-    AUTH_DAT=`curl -s -d "$REQUEST" -H "Content-type: application/json" "$OS_AUTH_URL/tokens"`
+    if [ "$OS_AUTH_VERSION" -eq "3" ]; then
+      REQUEST="{\"auth\": {\"scope\": {\"project\": {\"domain\": { \"id\": \"$OS_PROJECT_DOMAIN_ID\" }, \"name\": \"$OS_TENANT_NAME\"}}, \"identity\": { \"methods\": [\"password\"], \"password\": { \"user\": { \"name\": \"$OS_USERNAME\", \"domain\": { \"id\": \"$OS_USER_DOMAIN_ID\" }, \"password\": \"$OS_PASSWORD\"}}}}}"
+      AUTH_DAT=`curl -i -s -d "$REQUEST" -H "Content-type: application/json" "$OS_AUTH_URL/auth/tokens"`
+      #debug "v3 Auth response: \"$AUTH_DAT\""
+      API_TOKEN=`echo "$AUTH_DAT" | grep 'X-Subject-Token:' |sed 's/X-Subject-Token:\ \(.*\)\r/\1/'`
+      API_URL=`echo "$AUTH_DAT" | sed "1,/^\s*$(printf '\r')*$/d" | python -c "import sys; import json; tok = json.loads(sys.stdin.read()); endpoints = filter(lambda service: service['type'] == 'object-store' and service['name'] == 'swift', tok['token']['catalog'])[0]['endpoints'];  print filter(lambda ep: ep['interface'] == 'public', endpoints)[0]['url']"`
+    else # if v2
+      REQUEST="{\"auth\": {\"tenantName\":\"$OS_TENANT_NAME\", \"passwordCredentials\": {\"username\": \"$OS_USERNAME\", \"password\": \"$OS_PASSWORD\"}}}"
+      AUTH_DAT=`curl -s -d "$REQUEST" -H "Content-type: application/json" "$OS_AUTH_URL/tokens"`
+      API_URL=`echo $AUTH_DAT | python -c "import sys; import json; tok = json.loads(sys.stdin.read()); print filter(lambda service: service['type'] == 'object-store' and service['name'] == 'swift', tok['access']['serviceCatalog'])[0]['endpoints'][0]['publicURL']"`
+      API_TOKEN=`echo $AUTH_DAT | python -c "import sys; import json; tok = json.loads(sys.stdin.read()); print tok['access']['token']['id'];"`
+    fi
     debug "Auth response: \"$AUTH_DAT\""
     
     if [ -z "$AUTH_DAT" ]; then
@@ -84,13 +92,11 @@ authenticate() {
         return 4
     fi
 
-    API_URL=`echo $AUTH_DAT | python -c "import sys; import json; tok = json.loads(sys.stdin.read()); print filter(lambda service: service['type'] == 'object-store' and service['name'] == 'swift', tok['access']['serviceCatalog'])[0]['endpoints'][0]['publicURL']"`
     if [ -z "$API_URL" ]; then
         error"Error getting API URL"
         return 4
     fi
 
-    API_TOKEN=`echo $AUTH_DAT | python -c "import sys; import json; tok = json.loads(sys.stdin.read()); print tok['access']['token']['id'];"`
     if [ -z "$API_TOKEN" ]; then
         error "Error getting API TOKEN"
         return 4
