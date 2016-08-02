@@ -1,3 +1,31 @@
+- User scripts after exporting the following env variables:
+```
+export OS_TENANT_NAME=tenant
+export OS_USERNAME=user
+export OS_PASSWORD=pass
+export OS_AUTH_URL=https://localhost:5000/v2.0/
+```
+
+- Modified to work with keystone v2.
+- downloader.sh, upload_file.sh uploader.sh are works fine though test.sh result shows:
+```
+ERROR:Object not found!
++ CONT_create Failed
+ERROR:Object not found!
++ OBJ_put Failed
+ERROR:Object not found!
++ OBJ_get Failed
+ERROR:Object not found!
++ OBJ_copy Failed
+ERROR:Object not found!
++ OBJ_delete Failed
+ERROR:Object not found!
++ OBJ_delete.copy Failed
+ERROR:Object not found!
++ CONT_delete Failed
+```
+
+
 ======================================================================
 SwiftBash: bash interface to OpenStack Swift
 ======================================================================

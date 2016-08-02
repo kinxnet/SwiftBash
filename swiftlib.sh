@@ -22,7 +22,7 @@ SBFL_VERSION="0.0.4"
 ################################################################################
 # Private functions. Don't call them from outside
 ################################################################################
-AUTH_URL_CLODO="http://api.clodo.ru/v1"
+AUTH_URL_CLODO="$OS_AUTH_URL"
 
 LIST_LIMIT=10000
 MAX_FILESIZE=4294967296 # 4Gb Max allowed object size
@@ -59,15 +59,18 @@ debug() {
 
 #
 # Authenticates in $AUTH_URL and updates API_URL ans API_TOKEN
-# Args: Storage user 
-#       Storage key
 #
 authenticate() {
-    STORAGE_USER=$1
-    STORAGE_KEY=$2
+    STORAGE_USER=$OS_USERNAME
+    STORAGE_KEY=$OS_USERNAME
 
     debug "Auth with u: $STORAGE_USER k: $STORAGE_KEY"
-    AUTH_DAT="$(curl -I -s -H "X-Auth-User: $STORAGE_USER" -H "X-Auth-Key: $STORAGE_KEY" $AUTH_URL 2>&1)"
+
+    REQUEST="{\"auth\": {\"tenantName\":\"$OS_TENANT_NAME\", \"passwordCredentials\": {\"username\": \"$OS_USERNAME\", \"password\": \"$OS_PASSWORD\"}}}"
+
+    RAW_TOKEN=`curl -s -d "$REQUEST" -H "Content-type: application/json" "$OS_AUTH_URL/tokens"`
+
+    AUTH_DAT=`curl -s -d "$REQUEST" -H "Content-type: application/json" "$OS_AUTH_URL/tokens"`
     debug "Auth response: \"$AUTH_DAT\""
     
     if [ -z "$AUTH_DAT" ]; then
@@ -81,13 +84,13 @@ authenticate() {
         return 4
     fi
 
-    API_URL=`echo "$AUTH_DAT" | grep 'X-Storage-Url'|sed 's/X-Storage-Url: \(.*\)\r/\1/'`
+    API_URL=`echo $AUTH_DAT | python -c "import sys; import json; tok = json.loads(sys.stdin.read()); print filter(lambda service: service['type'] == 'object-store' and service['name'] == 'swift', tok['access']['serviceCatalog'])[0]['endpoints'][0]['publicURL']"`
     if [ -z "$API_URL" ]; then
         error"Error getting API URL"
         return 4
     fi
 
-    API_TOKEN=`echo "$AUTH_DAT" | grep 'X-Storage-Token' | sed 's/X-Storage-Token: \(.*\)\r/\1/'`
+    API_TOKEN=`echo $AUTH_DAT | python -c "import sys; import json; tok = json.loads(sys.stdin.read()); print tok['access']['token']['id'];"`
     if [ -z "$API_TOKEN" ]; then
         error "Error getting API TOKEN"
         return 4
@@ -241,7 +244,7 @@ create_cont() {
     if echo "$RESP" | grep -E "< HTTP/1.. 204|< HTTP/1.. 201|< HTTP/1.. 202" > /dev/null ; then
         return 0
     elif echo "$RESP" | grep -E "< HTTP/1.. 401" > /dev/null ; then
-        authenticate $STORAGE_USER $STORAGE_KEY
+        authenticate
         create_cont "$cont"
         return $?
     elif echo "$RESP" | grep -E "< HTTP/1.. 404" > /dev/null ; then
@@ -268,7 +271,7 @@ delete_cont() {
     if echo "$RESP" | grep -E "< HTTP/1.. 204|< HTTP/1.. 201|< HTTP/1.. 202" > /dev/null ; then
         return 0
     elif echo "$RESP" | grep -E "< HTTP/1.. 401" > /dev/null ; then
-        authenticate $STORAGE_USER $STORAGE_KEY
+        authenticate
         delete_cont "$cont"
         return $?
     elif echo "$RESP" | grep -E "< HTTP/1.. 404" > /dev/null ; then
@@ -311,7 +314,7 @@ get_obj() {
     if echo "$RESP" | grep -E "< HTTP/1.. 200|< HTTP/1.. 204|< HTTP/1.. 201|< HTTP/1.. 202" > /dev/null ; then
         return 0
     elif echo "$RESP" | grep -E "< HTTP/1.. 401" > /dev/null ; then
-        authenticate $STORAGE_USER $STORAGE_KEY
+        authenticate
         get_obj "$cont" "$obj" "$file"
         return $?
     elif echo "$RESP" | grep -E "< HTTP/1.. 404" > /dev/null ; then
@@ -359,7 +362,7 @@ put_obj() {
     if echo "$RESP" | grep -E "< HTTP/1.. 204|< HTTP/1.. 201|< HTTP/1.. 202" > /dev/null ; then
         return 0
     elif echo "$RESP" | grep -E "< HTTP/1.. 401" > /dev/null ; then
-        authenticate $STORAGE_USER $STORAGE_KEY
+        authenticate 
         put_obj "$cont" "$obj" "$file"
         return $?
     elif echo "$RESP" | grep -E "< HTTP/1.. 404" > /dev/null ; then
@@ -406,7 +409,7 @@ put_obj_manifest() {
     if echo "$RESP" | grep -E "< HTTP/1.. 204|< HTTP/1.. 201|< HTTP/1.. 202" > /dev/null ; then
         return 0
     elif echo "$RESP" | grep -E "< HTTP/1.. 401" > /dev/null ; then
-        authenticate $STORAGE_USER $STORAGE_KEY
+        authenticate 
         put_obj_manifest "$cont" "$obj" "$pin"
         return $?
     elif echo "$RESP" | grep -E "< HTTP/1.. 404" > /dev/null ; then
@@ -478,7 +481,7 @@ put_obj_segment() {
     if echo "$RESP" | grep -E "< HTTP/1.. 204|< HTTP/1.. 201|< HTTP/1.. 202" > /dev/null ; then
         return 0
     elif echo "$RESP" | grep -E "< HTTP/1.. 401" > /dev/null ; then
-        authenticate $STORAGE_USER $STORAGE_KEY
+        authenticate 
         put_obj_segment "$cont" "$obj" "$file" "$pin" "$start" "$ssize"  
         return $?
     elif echo "$RESP" | grep -E "< HTTP/1.. 404" > /dev/null ; then
@@ -595,7 +598,7 @@ copy_obj() {
     if echo "$RESP" | grep -E "< HTTP/1.. 204|< HTTP/1.. 201|< HTTP/1.. 202" > /dev/null ; then
         return 0
     elif echo "$RESP" | grep -E "< HTTP/1.. 401" > /dev/null ; then
-        authenticate $STORAGE_USER $STORAGE_KEY
+        authenticate 
         copy_obj "$src" "$dest"
         return $?
     elif echo "$RESP" | grep -E "< HTTP/1.. 404" > /dev/null ; then
@@ -622,7 +625,7 @@ delete_obj() {
     if echo "$RESP" | grep -E "< HTTP/1.. 204|< HTTP/1.. 201|< HTTP/1.. 202" > /dev/null ; then
         return 0
     elif echo "$RESP" | grep -E "< HTTP/1.. 401" > /dev/null ; then
-        authenticate $STORAGE_USER $STORAGE_KEY
+        authenticate 
         delete_obj "$obj"
         return $?
     elif echo "$RESP" | grep -E "< HTTP/1.. 404" > /dev/null ; then
@@ -658,7 +661,7 @@ create_dir() {
     if echo "$RESP" | grep -E "< HTTP/1.. 204|< HTTP/1.. 201|< HTTP/1.. 202" > /dev/null ; then
         return 0
     elif echo "$RESP" | grep -E "< HTTP/1.. 401" > /dev/null ; then
-        authenticate $STORAGE_USER $STORAGE_KEY
+        authenticate 
         create_dir "$cont" "$obj"
         return $?
     elif echo "$RESP" | grep -E "< HTTP/1.. 404" > /dev/null ; then

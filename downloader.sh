@@ -1,6 +1,5 @@
 #!/bin/bash
 . swiftlib.sh
-. ~/.swiftbash.sh
 
 DEBUG=no
 

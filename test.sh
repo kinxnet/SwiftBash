@@ -1,10 +1,8 @@
 #!/bin/bash
 . swiftlib.sh
-. ~/.swiftbash.sh
 
 DEBUG=yes
-
-if authenticate $STORAGE_USER $STORAGE_KEY ; then
+if authenticate; then
     echo "+ AUTH Passed"
 else
     echo "+ AUTH Failed"

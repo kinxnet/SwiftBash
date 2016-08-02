@@ -1,16 +1,7 @@
 #!/bin/bash
 . swiftlib.sh
-. ~/.swiftbash.sh
 
 DEBUG=no
-
-if [ -z "$STORAGE_USER" ]; then
-    STORAGE_USER='storage_6681_1'
-fi
-
-if [ -z "$STORAGE_KEY" ]; then
-    STORAGE_KEY='ad4f23431fbd68512cd0s8929443baaa'
-fi
 
 DIR="$1"
 CNT="$2"
@@ -35,7 +26,7 @@ if [[ ! -d $DIR ]]; then
 fi
 
 echo -ne "Authenticating..."
-if authenticate $STORAGE_USER $STORAGE_KEY; then
+if authenticate; then
     echo -ne "done\n"
 else
     echo -ne "failed\n"
